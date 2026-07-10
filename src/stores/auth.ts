@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import api from '@/services/api'
-import router from '@/router'
+import api from '../services/api'
+import router from '../router'
 
 interface LoginResponse {
   token: string
