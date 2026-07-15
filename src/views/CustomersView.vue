@@ -2,6 +2,9 @@
 import { ref, onMounted } from 'vue'
 import api from '../services/api'
 import ConfirmDeleteAllModal from '../components/ConfirmDeleteAllModal.vue'
+import CreateCustomerModal from '../components/CreateCustomerModal.vue'
+
+
 
 // Interfaces
 interface Customer {
@@ -25,6 +28,24 @@ interface PaginationInfo {
 const customers = ref<Customer[]>([])
 const convenios = ref<string[]>([])
 const loading = ref(false)
+
+const showCreateModal = ref(false)
+const isSavingCustomer = ref(false)
+
+const handleCreateCustomer = async (payload: { fullName: string; convenio: string; phoneNumber: string }) => {
+  isSavingCustomer.value = true
+  try {
+    await api.post('/customers', payload)
+    showCreateModal.value = false
+    await fetchConvenios()
+    await fetchCustomers()
+  } catch (error) {
+    console.error('!Error creando cliente:', error)
+    alert('Hubo un error al crear el cliente.')
+  } finally {
+    isSavingCustomer.value = false
+  }
+}
 
 const filters = ref({
   page: 1,
@@ -225,6 +246,13 @@ onMounted(() => {
         >
           Borrar toda la base de datos
         </button>
+        <button
+          type="button"
+          @click="showCreateModal = true"
+          class="text-sm text-white bg-brand-green hover:bg-brand-green-hover rounded-xl px-4 py-2 transition-colors"
+        >
+          Agregar cliente
+      </button>
       </div>
     </div>
 
@@ -368,6 +396,12 @@ onMounted(() => {
       :is-deleting="isDeletingAll"
       @confirm="handleDeleteAll"
     />
+
+    <CreateCustomerModal
+      v-model="showCreateModal"
+      :is-saving="isSavingCustomer"
+      @save="handleCreateCustomer"
+      />
 
   </div>
 </template>
