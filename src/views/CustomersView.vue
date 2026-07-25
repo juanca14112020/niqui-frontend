@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import api from '../services/api'
 import ConfirmDeleteAllModal from '../components/ConfirmDeleteAllModal.vue'
 import CreateCustomerModal from '../components/CreateCustomerModal.vue'
+import TestCallModal from '../components/TestCallModal.vue'
 
-
+const router = useRouter()
 
 // Interfaces
 interface Customer {
@@ -24,28 +26,10 @@ interface PaginationInfo {
   totalCount: number
 }
 
-// Estado reactivo
+// Estado reactivo principal
 const customers = ref<Customer[]>([])
 const convenios = ref<string[]>([])
 const loading = ref(false)
-
-const showCreateModal = ref(false)
-const isSavingCustomer = ref(false)
-
-const handleCreateCustomer = async (payload: { fullName: string; convenio: string; phoneNumber: string }) => {
-  isSavingCustomer.value = true
-  try {
-    await api.post('/customers', payload)
-    showCreateModal.value = false
-    await fetchConvenios()
-    await fetchCustomers()
-  } catch (error) {
-    console.error('!Error creando cliente:', error)
-    alert('Hubo un error al crear el cliente.')
-  } finally {
-    isSavingCustomer.value = false
-  }
-}
 
 const filters = ref({
   page: 1,
@@ -62,12 +46,28 @@ const pagination = ref<PaginationInfo>({
   totalCount: 0
 })
 
-// Estado del modal de borrar todo
+// Estados de modales originales
+const showCreateModal = ref(false)
+const isSavingCustomer = ref(false)
+
+const showTestCallModal = ref(false)
+const isCalling = ref(false)
+
 const showDeleteAllModal = ref(false)
 const isDeletingAll = ref(false)
 
-// Estado de exportacion a Excel
 const isExporting = ref(false)
+
+// --- ESTADO PARA LLAMADAS MASIVAS ---
+const showMassCallModal = ref(false)
+const isBulkCalling = ref(false)
+const massCallConfig = ref({
+  convenio: '',
+  targetCalls: null as number | null,
+  timeSlot: ''
+})
+
+// --- FUNCIONES ---
 
 // Cargar Convenios para el Dropdown
 const fetchConvenios = async () => {
@@ -106,26 +106,80 @@ const fetchCustomers = async () => {
   }
 }
 
+// Handler para crear cliente
+const handleCreateCustomer = async (payload: { fullName: string; convenio: string; phoneNumber: string }) => {
+  isSavingCustomer.value = true
+  try {
+    await api.post('/customers', payload)
+    showCreateModal.value = false
+    await fetchConvenios()
+    await fetchCustomers()
+  } catch (error) {
+    console.error('Error creando cliente:', error)
+    alert('Hubo un error al crear el cliente.')
+  } finally {
+    isSavingCustomer.value = false
+  }
+}
+
+// Handler para la prueba de llamada
+const handleTestCall = async (phoneNumber: string) => {
+  isCalling.value = true
+  try {
+    const { data } = await api.post('/calls/test-call', { phoneNumber })
+    alert(`Llamada iniciada con éxito. SID: ${data.callSid}`)
+    showTestCallModal.value = false
+  } catch (error) {
+    console.error('Error al realizar la llamada de prueba:', error)
+    alert('Hubo un error al intentar realizar la llamada de prueba.')
+  } finally {
+    isCalling.value = false
+  }
+}
+
+// Handler para iniciar llamadas masivas
+const handleMassCalls = async () => {
+  isBulkCalling.value = true
+  try {
+    const timeLimitMap: Record<string, number> = {
+      morning: 180,
+      afternoon: 180,
+      all_day: 360
+    }
+    await api.post('/mass-calls/start', {
+      convenio: massCallConfig.value.convenio,
+      targetCalls: massCallConfig.value.targetCalls,
+      timeLimitMinutes: timeLimitMap[massCallConfig.value.timeSlot]
+    })
+    alert('Ejecución de llamadas masivas iniciada con éxito.')
+    showMassCallModal.value = false
+    massCallConfig.value = { convenio: '', targetCalls: null, timeSlot: '' }
+  } catch (error) {
+    console.error('Error al iniciar llamadas masivas:', error)
+    alert('Hubo un error al iniciar la ejecución masiva.')
+  } finally {
+    isBulkCalling.value = false
+  }
+}
+
+const goToHistory = () => {
+  router.push('/mass-calls-history')
+}
+
 // Función para cambiar el estado con el Switch y guardar en el backend
 const toggleStatus = async (customer: Customer, field: 'isCalled' | 'isApproved') => {
-  // Guardamos el estado original completo por si falla la API (Optimistic UI Update)
   const originalIsCalled = customer.isCalled;
   const originalIsApproved = customer.isApproved;
 
-  // Hacemos el toggle de lo que el usuario clickeó
   customer[field] = !customer[field];
 
-  // --- REGLAS DE NEGOCIO ---
-  // 1. Si lo aprueban, SÍ O SÍ debió ser llamado
   if (field === 'isApproved' && customer.isApproved === true) {
     customer.isCalled = true;
   }
   
-  // 2. Si le quitan el "Llamado", NO puede estar aprobado
   if (field === 'isCalled' && customer.isCalled === false) {
     customer.isApproved = false;
   }
-  // -------------------------
 
   try {
     const payload = {
@@ -139,14 +193,13 @@ const toggleStatus = async (customer: Customer, field: 'isCalled' | 'isApproved'
     await api.put(`/customers/${customer.customerId}`, payload)
   } catch (error) {
     console.error(`Error actualizando estados:`, error)
-    // Revertimos ambos campos a su estado original si la API falla
     customer.isCalled = originalIsCalled;
     customer.isApproved = originalIsApproved;
     alert('Hubo un error al actualizar el estado en el servidor.');
   }
 }
 
-// Borrar TODOS los customers (Developer/SuperAdmin, con confirmacion en el modal)
+// Borrar TODOS los customers
 const handleDeleteAll = async () => {
   isDeletingAll.value = true
   try {
@@ -162,7 +215,7 @@ const handleDeleteAll = async () => {
   }
 }
 
-// Exportar a Excel TODOS los resultados que matcheen los filtros actuales (sin paginar)
+// Exportar a Excel
 const handleExport = async () => {
   isExporting.value = true
   try {
@@ -219,7 +272,6 @@ const nextPage = () => {
   }
 }
 
-// Inicialización
 onMounted(() => {
   fetchConvenios()
   fetchCustomers()
@@ -230,7 +282,30 @@ onMounted(() => {
   <div class="min-h-screen bg-brand-bg text-brand-text p-6 sm:p-8">
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold">Gestión de Clientes</h1>
+      
+      <!-- CONTENEDOR DE BOTONES -->
       <div class="flex gap-2">
+        <button
+          type="button"
+          @click="goToHistory"
+          class="text-sm text-gray-500 border border-gray-500/30 hover:bg-gray-500/10 rounded-xl px-4 py-2 transition-colors"
+        >
+          Historial
+        </button>
+        <button
+          type="button"
+          @click="showMassCallModal = true"
+          class="text-sm text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/10 rounded-xl px-4 py-2 transition-colors"
+        >
+          Llamadas masivas
+        </button>
+        <button
+          type="button"
+          @click="showTestCallModal = true"
+          class="text-sm text-sky-400 border border-sky-500/30 hover:bg-sky-500/10 rounded-xl px-4 py-2 transition-colors"
+        >
+          Probar llamada
+        </button>
         <button
           type="button"
           @click="handleExport"
@@ -252,7 +327,7 @@ onMounted(() => {
           class="text-sm text-white bg-brand-green hover:bg-brand-green-hover rounded-xl px-4 py-2 transition-colors"
         >
           Agregar cliente
-      </button>
+        </button>
       </div>
     </div>
 
@@ -391,6 +466,63 @@ onMounted(() => {
       </div>
     </div>
 
+    <!-- MODAL DE CONFIGURACIÓN DE LLAMADAS MASIVAS -->
+    <div v-if="showMassCallModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div class="bg-brand-card border border-brand-border rounded-xl shadow-xl w-full max-w-md p-6">
+        <h2 class="text-xl font-bold mb-2 text-brand-text">Configurar Llamadas Masivas</h2>
+        <p class="text-xs text-brand-muted mb-6">Las llamadas se detendrán si se alcanza la meta o finaliza la franja horaria.</p>
+        
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold text-brand-text mb-1">Convenio a llamar</label>
+            <select v-model="massCallConfig.convenio" class="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-green transition-colors">
+              <option value="" disabled>Seleccione un convenio</option>
+              <option value="Cualquiera">Cualquiera (Todos los convenios)</option>
+              <option v-for="c in convenios" :key="c" :value="c">{{ c }}</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-brand-text mb-1">Cantidad de llamadas (Meta)</label>
+            <input 
+              v-model="massCallConfig.targetCalls" 
+              type="number" 
+              min="1" 
+              placeholder="Ej. 100" 
+              class="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-green transition-colors"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-brand-text mb-1">Franja horaria (Hora Colombia)</label>
+            <select v-model="massCallConfig.timeSlot" class="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-green transition-colors">
+              <option value="" disabled>Seleccione una franja</option>
+              <option value="all_day">Todo el día (9:00 AM - 12:00 PM y 2:00 PM - 5:00 PM)</option>
+              <option value="morning">Mañana (9:00 AM - 12:00 PM)</option>
+              <option value="afternoon">Tarde (2:00 PM - 5:00 PM)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-6 flex justify-end gap-3">
+          <button 
+            @click="showMassCallModal = false" 
+            class="px-4 py-2 text-sm border border-brand-border text-brand-text rounded-xl hover:bg-brand-border/50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button 
+            @click="handleMassCalls" 
+            :disabled="!massCallConfig.convenio || !massCallConfig.targetCalls || !massCallConfig.timeSlot || isBulkCalling"
+            class="px-4 py-2 text-sm bg-brand-green text-white rounded-xl hover:bg-brand-green-hover transition-colors disabled:opacity-50"
+          >
+            {{ isBulkCalling ? 'Iniciando...' : 'Iniciar Ejecución' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TUS OTROS MODALES ORIGINALES -->
     <ConfirmDeleteAllModal
       v-model="showDeleteAllModal"
       :is-deleting="isDeletingAll"
@@ -401,7 +533,12 @@ onMounted(() => {
       v-model="showCreateModal"
       :is-saving="isSavingCustomer"
       @save="handleCreateCustomer"
-      />
+    />
 
+    <TestCallModal
+      v-model="showTestCallModal"
+      :is-calling="isCalling"
+      @call="handleTestCall"
+    />
   </div>
 </template>

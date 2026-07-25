@@ -47,6 +47,12 @@ const router = createRouter({
       meta: { requiresAuth: true, roles: ['SuperAdmin', 'Admin'] }
     },
     {
+      path: '/mass-calls-history',
+      name: 'mass-calls-history',
+      component: () => import('../views/MassCallsHistoryView.vue'),
+      meta: { requiresAuth: true, roles: ['Developer', 'SuperAdmin', 'Admin'] }
+    },
+    {
       path: '/profile',
       name: 'profile',
       component: () => import('../views/ProfileView.vue'),
