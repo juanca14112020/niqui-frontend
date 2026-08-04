@@ -38,7 +38,7 @@ onUnmounted(() => {
 })
 
 const goBack = () => {
-  router.push('/customers')
+  router.push({ name: 'customers' })
 }
 
 const getStatusStyles = (status: string) => {
@@ -64,14 +64,20 @@ const getStatusText = (status: string) => {
 
 <template>
   <div class="min-h-screen bg-brand-bg text-brand-text p-6 sm:p-8">
-    <div class="flex items-center gap-4 mb-6">
-      <button @click="goBack" class="p-2 bg-brand-card border border-brand-border hover:bg-brand-border rounded transition-colors">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-brand-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
-      </button>
-      <h1 class="text-2xl font-bold">Historial de Llamadas Masivas</h1>
-    </div>
+    
+    <!-- BOTÓN VOLVER -->
+    <button
+      type="button"
+      @click="goBack"
+      class="inline-flex items-center gap-2 text-sm text-brand-muted hover:text-brand-text transition-colors mb-6 group cursor-pointer"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transform group-hover:-translate-x-1 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+      </svg>
+      Volver
+    </button>
+
+    <h1 class="text-2xl font-bold mb-6">Historial de Llamadas Masivas</h1>
 
     <div class="overflow-x-auto bg-brand-card border border-brand-border rounded-lg shadow-sm">
       <table class="w-full text-left border-collapse">

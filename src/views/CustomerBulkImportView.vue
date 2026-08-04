@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import api from '../services/api'
 
 interface BulkImportResult {
@@ -9,6 +10,8 @@ interface BulkImportResult {
   errors: string[]
 }
 
+const router = useRouter()
+
 const selectedFile = ref<File | null>(null)
 const isDragging = ref(false)
 const isUploading = ref(false)
@@ -16,6 +19,11 @@ const result = ref<BulkImportResult | null>(null)
 const errorMessage = ref<string | null>(null)
 
 const fileInput = ref<HTMLInputElement | null>(null)
+
+function goBack() {
+  // Redirige a la pantalla principal de clientes
+  router.push({ name: 'customers' })
+}
 
 function handleFileChange(event: Event) {
   const target = event.target as HTMLInputElement
@@ -79,6 +87,19 @@ async function handleUpload() {
 <template>
   <div class="min-h-screen bg-brand-bg text-brand-text p-6 sm:p-8">
     <div class="max-w-2xl mx-auto">
+      
+      <!-- BOTÓN VOLVER -->
+      <button
+        type="button"
+        @click="goBack"
+        class="inline-flex items-center gap-2 text-sm text-brand-muted hover:text-brand-text transition-colors mb-6 group cursor-pointer"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transform group-hover:-translate-x-1 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        Volver
+      </button>
+
       <h1 class="text-2xl font-bold mb-1">Carga masiva de clientes</h1>
       <p class="text-brand-muted text-sm mb-8">
         Subí un archivo Excel con los clientes a importar. Las columnas se detectan automáticamente
@@ -145,7 +166,7 @@ async function handleUpload() {
         </button>
       </div>
 
-      <!-- Error general (archivo invalido, error de red, etc.) -->
+      <!-- Error general -->
       <p v-if="errorMessage" class="text-sm text-red-400 mt-4">{{ errorMessage }}</p>
 
       <!-- Boton subir -->

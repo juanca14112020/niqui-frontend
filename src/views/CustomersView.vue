@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 import api from '../services/api'
 import ConfirmDeleteAllModal from '../components/ConfirmDeleteAllModal.vue'
 import CreateCustomerModal from '../components/CreateCustomerModal.vue'
-import TestCallModal from '../components/TestCallModal.vue'
 
 const router = useRouter()
+const auth = useAuthStore()
 
 // Interfaces
 interface Customer {
@@ -35,6 +36,7 @@ const filters = ref({
   page: 1,
   pageSize: 20,
   search: '',
+  phoneNumber: '',
   convenio: '',
   isCalled: '',
   isApproved: ''
@@ -49,9 +51,6 @@ const pagination = ref<PaginationInfo>({
 // Estados de modales originales
 const showCreateModal = ref(false)
 const isSavingCustomer = ref(false)
-
-const showTestCallModal = ref(false)
-const isCalling = ref(false)
 
 const showDeleteAllModal = ref(false)
 const isDeletingAll = ref(false)
@@ -68,6 +67,27 @@ const massCallConfig = ref({
 })
 
 // --- FUNCIONES ---
+
+const handleLogout = async () => {
+  try {
+    if (typeof auth.logout === 'function') {
+      await auth.logout()
+    } else {
+      auth.token = null
+    }
+  } catch (error) {
+    console.warn('Error durante el cierre de sesión en Pinia/API:', error)
+  } finally {
+    localStorage.clear()
+    sessionStorage.clear()
+
+    if (api.defaults.headers.common['Authorization']) {
+      delete api.defaults.headers.common['Authorization']
+    }
+
+    window.location.href = '/login'
+  }
+}
 
 // Cargar Convenios para el Dropdown
 const fetchConvenios = async () => {
@@ -88,6 +108,7 @@ const fetchCustomers = async () => {
       pageSize: filters.value.pageSize,
     }
     if (filters.value.search) params.search = filters.value.search
+    if (filters.value.phoneNumber) params.phoneNumber = filters.value.phoneNumber
     if (filters.value.convenio) params.convenio = filters.value.convenio
     if (filters.value.isCalled !== '') params.isCalled = filters.value.isCalled === 'true'
     if (filters.value.isApproved !== '') params.isApproved = filters.value.isApproved === 'true'
@@ -122,21 +143,6 @@ const handleCreateCustomer = async (payload: { fullName: string; convenio: strin
   }
 }
 
-// Handler para la prueba de llamada
-const handleTestCall = async (phoneNumber: string) => {
-  isCalling.value = true
-  try {
-    const { data } = await api.post('/calls/test-call', { phoneNumber })
-    alert(`Llamada iniciada con éxito. SID: ${data.callSid}`)
-    showTestCallModal.value = false
-  } catch (error) {
-    console.error('Error al realizar la llamada de prueba:', error)
-    alert('Hubo un error al intentar realizar la llamada de prueba.')
-  } finally {
-    isCalling.value = false
-  }
-}
-
 // Handler para iniciar llamadas masivas
 const handleMassCalls = async () => {
   isBulkCalling.value = true
@@ -164,6 +170,10 @@ const handleMassCalls = async () => {
 
 const goToHistory = () => {
   router.push('/mass-calls-history')
+}
+
+const goToBulkImport = () => {
+  router.push('/customers/bulk-import')
 }
 
 // Función para cambiar el estado con el Switch y guardar en el backend
@@ -221,6 +231,7 @@ const handleExport = async () => {
   try {
     const params: Record<string, any> = {}
     if (filters.value.search) params.search = filters.value.search
+    if (filters.value.phoneNumber) params.phoneNumber = filters.value.phoneNumber
     if (filters.value.convenio) params.convenio = filters.value.convenio
     if (filters.value.isCalled !== '') params.isCalled = filters.value.isCalled === 'true'
     if (filters.value.isApproved !== '') params.isApproved = filters.value.isApproved === 'true'
@@ -254,7 +265,7 @@ const applyFilters = () => {
 }
 
 const clearFilters = () => {
-  filters.value = { page: 1, pageSize: 20, search: '', convenio: '', isCalled: '', isApproved: '' }
+  filters.value = { page: 1, pageSize: 20, search: '', phoneNumber: '', convenio: '', isCalled: '', isApproved: '' }
   fetchCustomers()
 }
 
@@ -280,11 +291,11 @@ onMounted(() => {
 
 <template>
   <div class="min-h-screen bg-brand-bg text-brand-text p-6 sm:p-8">
-    <div class="flex justify-between items-center mb-6">
+    <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
       <h1 class="text-2xl font-bold">Gestión de Clientes</h1>
       
       <!-- CONTENEDOR DE BOTONES -->
-      <div class="flex gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <button
           type="button"
           @click="goToHistory"
@@ -301,10 +312,10 @@ onMounted(() => {
         </button>
         <button
           type="button"
-          @click="showTestCallModal = true"
+          @click="goToBulkImport"
           class="text-sm text-sky-400 border border-sky-500/30 hover:bg-sky-500/10 rounded-xl px-4 py-2 transition-colors"
         >
-          Probar llamada
+          Cargar base de datos
         </button>
         <button
           type="button"
@@ -328,17 +339,40 @@ onMounted(() => {
         >
           Agregar cliente
         </button>
+
+        <!-- BOTÓN CERRAR SESIÓN -->
+        <button
+          type="button"
+          @click="handleLogout"
+          class="text-sm text-red-400 border border-red-500/30 hover:bg-red-500/20 hover:border-red-500/60 rounded-xl px-4 py-2 transition-colors flex items-center gap-1.5 ml-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          Cerrar sesión
+        </button>
       </div>
     </div>
 
     <!-- SECCIÓN DE FILTROS -->
-    <div class="bg-brand-card border border-brand-border rounded-lg p-4 mb-6 grid grid-cols-1 md:grid-cols-5 gap-4 shadow-sm">
+    <div class="bg-brand-card border border-brand-border rounded-lg p-4 mb-6 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 shadow-sm">
       <div>
         <label class="block text-xs font-semibold text-brand-muted mb-1">Buscar (Nombre/Apellido)</label>
         <input 
           v-model="filters.search" 
           type="text" 
           placeholder="Ej. Juan Pérez" 
+          class="w-full bg-brand-bg border border-brand-border rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-green transition-colors"
+          @keyup.enter="applyFilters"
+        />
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-brand-muted mb-1">Teléfono</label>
+        <input 
+          v-model="filters.phoneNumber" 
+          type="text" 
+          placeholder="Ej. 3001234567" 
           class="w-full bg-brand-bg border border-brand-border rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-green transition-colors"
           @keyup.enter="applyFilters"
         />
@@ -522,7 +556,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- TUS OTROS MODALES ORIGINALES -->
+    <!-- MODALES AUXILIARES -->
     <ConfirmDeleteAllModal
       v-model="showDeleteAllModal"
       :is-deleting="isDeletingAll"
@@ -533,12 +567,6 @@ onMounted(() => {
       v-model="showCreateModal"
       :is-saving="isSavingCustomer"
       @save="handleCreateCustomer"
-    />
-
-    <TestCallModal
-      v-model="showTestCallModal"
-      :is-calling="isCalling"
-      @call="handleTestCall"
     />
   </div>
 </template>

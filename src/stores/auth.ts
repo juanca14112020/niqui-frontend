@@ -19,6 +19,11 @@ export const useAuthStore = defineStore('auth', () => {
   const errorMessage = ref<string | null>(null)
   const isLoading = ref(false)
 
+  // 1. Si ya existe un token en localStorage al recargar la página, se asigna a Axios
+  if (token.value) {
+    api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
+  }
+
   async function login(email: string, password: string) {
     errorMessage.value = null
     isLoading.value = true
@@ -26,23 +31,40 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const { data } = await api.post<LoginResponse>('/auth/login', { email, password })
 
+      // Guardar estados
       token.value = data.token
       role.value = data.role
       fullName.value = data.fullName
 
+      // Persistir en LocalStorage
       localStorage.setItem('niqui_token', data.token)
       localStorage.setItem('niqui_role', data.role)
       localStorage.setItem('niqui_fullname', data.fullName)
 
-      router.push({ name: 'dashboard' })
+      // 2. IMPORTANTE: Asignar el token a las cabeceras de Axios inmediatamente
+      api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`
+
     } catch (err: any) {
-      if (err.response?.status === 401) {
-        errorMessage.value = 'Correo o contraseña incorrectos.'
+      // 3. Mejoramos la clasificación del error
+      if (err.response) {
+        if (err.response.status === 401) {
+          errorMessage.value = 'Correo o contraseña incorrectos.'
+        } else {
+          errorMessage.value = err.response.data?.message || 'Error en el servidor.'
+        }
       } else {
         errorMessage.value = 'No se pudo conectar con el servidor. Intenta de nuevo.'
       }
+      return // Si falla la API, cortamos la ejecución y NO navegamos
     } finally {
       isLoading.value = false
+    }
+
+    // 4. La navegación se hace FUERA del try/catch de la API
+    try {
+      await router.push({ name: 'customers' })
+    } catch (routerErr) {
+      console.error('Error al redirigir a clientes:', routerErr)
     }
   }
 
@@ -54,6 +76,9 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('niqui_token')
     localStorage.removeItem('niqui_role')
     localStorage.removeItem('niqui_fullname')
+
+    // Limpiar cabecera de Axios al salir
+    delete api.defaults.headers.common['Authorization']
 
     router.push({ name: 'login' })
   }

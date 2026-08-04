@@ -12,34 +12,12 @@ const router = createRouter({
     },
     {
       path: '/',
-      name: 'dashboard',
-      component: () => import('../views/DashboardView.vue'),
-      meta: { requiresAuth : true}
-    },
-    {
-      path: '/developers',
-      name: 'developers',
-      component: () => import('../views/DevelopersView.vue'),
-      meta: { requiresAuth : true },
-    },
-    {
-      path: '/superadmins',
-      name: 'superadmins',
-      component: () => import('../views/SuperAdminsView.vue'),
-      meta: { requiresAuth: true, roles: ['Developer'] }
-    },
-    {
-      path: '/admins',
-      name: 'admins',
-      component: () => import('../views/AdminsView.vue'),
-      meta: { requiresAuth: true, roles: ['Developer', 'SuperAdmin'] }
-    },
-    {
-      path:'/customers',
       name: 'customers',
       component: () => import('../views/CustomersView.vue'),
       meta: { requiresAuth: true, roles: ['Developer', 'SuperAdmin', 'Admin'] }
     },
+    
+    
     {
       path: '/customers/bulk-import',
       name: 'customers-bulk-import',
@@ -51,12 +29,6 @@ const router = createRouter({
       name: 'mass-calls-history',
       component: () => import('../views/MassCallsHistoryView.vue'),
       meta: { requiresAuth: true, roles: ['Developer', 'SuperAdmin', 'Admin'] }
-    },
-    {
-      path: '/profile',
-      name: 'profile',
-      component: () => import('../views/ProfileView.vue'),
-      meta: { requiresAuth: true, roles: ['SuperAdmin', 'Admin'] }
     }
   ]
 })
@@ -68,13 +40,12 @@ router.beforeEach((to) => {
     return { name: 'login'}
   }
   if (to.meta.publicOnly && auth.token) {
-    return { name: 'dashboard' }
+    return { name: 'customers' }
   }
 
-  // Si la ruta exige ciertos roles y el rol actual no esta en la lista, se manda al home
   const allowedRoles = to.meta.roles as string[] | undefined
   if (allowedRoles && auth.role && !allowedRoles.includes(auth.role)) {
-    return { name:  'dashboard' }
+    return { name: 'customers' }
   }
 })
 
