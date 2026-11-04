@@ -1,9 +1,18 @@
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 
-// Ajusta el puerto al que te muestre "dotnet run" en tu backend
+// URL del backend:
+// - Si existe VITE_API_URL (variable de entorno en Vercel o .env), se usa esa.
+// - En produccion (build de Vercel) usa el backend de Render.
+// - En local ("npm run dev") usa el backend de "dotnet run".
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD
+    ? 'https://niquibackend.onrender.com/api'
+    : 'http://localhost:5214/api')
+
 const api = axios.create({
-  baseURL: 'http://localhost:5214/api'
+  baseURL: API_URL
 })
 
 // Agrega automaticamente el token JWT a cada request, si existe
